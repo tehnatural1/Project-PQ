@@ -1,0 +1,40 @@
+/*******************************************************************************
+ * Identify potential entropy cases by finding all hosts that provided the same
+ * public key (fingerprint), yet had different issuer or subject fields.
+ ******************************************************************************/
+SELECT  x.fingerprint
+FROM    x509info AS x
+WHERE EXISTS (
+            SELECT  1 
+            FROM    x509info AS y
+            WHERE   (
+                        (y.fingerprint = x.fingerprint) AND
+                        (
+                            (y.issuer  <> x.issuer ) OR
+                            (y.subject <> x.subject)
+                        )
+                    )
+)
+GROUP BY x.fingerprint
+HAVING COUNT(x.fingerprint) > 10;
+
+/*******************************************************************************
+ * 
+ * 
+ ******************************************************************************/
+SELECT  x.fingerprint
+FROM    x509info AS x, rsaNumbers AS r
+WHERE   (
+            (r.n = '%s') AND
+            (x.ipv4_address = r.ipv4_address)
+);
+
+/*******************************************************************************
+ * Identify potential entropy cases by finding all hosts that presented the same
+ * public key (fingerprint), yet had different notBefore dates.
+ ******************************************************************************/
+SELECT  fingerprint, COUNT(DISTINCT(notBefore)) as c
+FROM    x509info
+GROUP BY fingerprint
+ORDER BY c DESC
+LIMIT   1000;

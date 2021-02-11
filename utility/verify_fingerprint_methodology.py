@@ -1,0 +1,35 @@
+"""
+Verifies fingerprint methodology for correct X.509 fingerprint extraction.
+
+PROOF OF CONCEPT ONLY.
+
+NOTE:
+    This will provide the standard fingerprint of an X.509. This is not the
+    fingerprint used during the generation of the databases.
+
+"""
+
+import binascii
+import hashlib
+
+EXPECTED = "96421eda0168df9a44c9eadc7451cae578f3c42456bbef5c5b33e1791b88d20c"
+
+data = """MIICuzCCAiQCCQD3E5juxAKW2zANBgkqhkiG9w0BAQUFADCBoTELMAkGA1UEBhMC
+VVMxEzARBgNVBAgTCkNhbGlmb3JuaWExETAPBgNVBAcTCFNhbkRpZWdvMSAwHgYD
+VQQKExdNb3Rvcm9sYS1Nb2JpbGl0eSBDb3JwLjEMMAoGA1UECxMDVklQMQwwCgYD
+VQQDEwNCTVMxLDAqBgkqhkiG9w0BCQEWHXN1cHBvcnRAbW90b3JvbGEtbW9iaWxp
+dHkuY29tMB4XDTEyMDQxNzE4MDgyNVoXDTIyMDQxNTE4MDgyNVowgaExCzAJBgNV
+BAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMREwDwYDVQQHEwhTYW5EaWVnbzEg
+MB4GA1UEChMXTW90b3JvbGEtTW9iaWxpdHkgQ29ycC4xDDAKBgNVBAsTA1ZJUDEM
+MAoGA1UEAxMDQk1TMSwwKgYJKoZIhvcNAQkBFh1zdXBwb3J0QG1vdG9yb2xhLW1v
+YmlsaXR5LmNvbTCBnzANBgkqhkiG9w0BAQEFAAOBjQAwgYkCgYEAziexFL4LwXSC
+v58eEOhNFDUX7Y0PNsk4j/yNLyMZF73E83jxaECf/fDAc9WUigyyp0KO5Y93QzrY
+OCOoZ3xQTimj0zd0C4mwR5d7damIMPu15csex+xdsGkeuLPgjAFXxHVdFx9Qdwdb
+efF3UMAmiP2kx7t+Rn5FhGayq/ooA0MCAwEAATANBgkqhkiG9w0BAQUFAAOBgQAC
+ZQVDgz7i08m08FBnbNWS32h04Irxr7L1aYrDQoRN5e6w7GQWnjLX0yFrlbOzP6Zy
+1QFo9tjIoGCtjw4EoRjBmjVt6oDfZuyGfEhqLroQofv6X7uLOF00X0GrNc1R4HJw
+Yy6Ih6TBmPTAf8SuKwdoD+r9gPI7NXnMsbk3E0HB6A=="""
+
+digest = hashlib.sha256(binascii.a2b_base64(data)).hexdigest()
+
+print(digest == EXPECTED)
