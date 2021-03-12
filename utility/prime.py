@@ -3,16 +3,29 @@ This is an extremely simplified and paired down version a quadratic sieve. If
 you come across a faster way to identify a prime or find the next prime number
 after a given number please feel free to email it to me dholl086@uottawa.ca
 
-NOTE:
-    The code of this method assumes numbers being checked are larger than 212 in
-    size. This is a limitation presented from the simplication of a quadratic
-    sieve. Since the small primes (less than 212) are easy to find, I did not
-    care to add support for them.
+Module Use Case Example:
+    Finding the next prime number of a simple 2048 bit integer (617 digits):
+        >>> initial_number = (0b1 << 2047)          # 0b1000_0000_ .... _0000
+        >>> Prime.next_prime(initial_number)
 
 """
 
+# Limit importing to the Prime class
+__all__         =   [ "Prime" ]
+
+# Primes less than 212 - this array is used to speed up the identification of
+# large prime numbers by checking if each is a factor of the large number.
+SMALL_PRIMES    =   [
+                          2,   3,   5,   7, 11,   13,  17,  19,  23,  29,
+                         31,  37,  41,  43, 47,   53,  59,  61,  67,  71,
+                         73,  79,  83,  89, 97,  101, 103, 107, 109, 113,
+                        127, 131, 137, 139, 149, 151, 157, 163, 167, 173,
+                        179, 181, 191, 193, 197, 199, 211
+                    ]
+
 # Pre-calculated sieve of eratosthenes for n = 2, 3, 5, 7
-INDICES         =   [
+# NOTE: Must be ordered
+SIEVE_INDICES   =   [
                           1,  11,  13,  17,  19,  23,  29,  31,  37,  41,
                          43,  47,  53,  59,  61,  67,  71,  73,  79,  83,
                          89,  97, 101, 103, 107, 109, 113, 121, 127, 131,
@@ -20,16 +33,45 @@ INDICES         =   [
                         179, 181, 187, 191, 193, 197, 199, 209
                     ]
 
-# Distances between sieve values
-OFFSETS         =   [
+# Distances between sieve values of the SIEVE_INDICES array above
+# For example:
+#   Index 0 and 1 array element distance 1 and 11 ==> 10
+#   Index 1 and 2 array element distance 11 and 13 ==> 2 ...
+SIEVE_OFFSETS   =   [
                          10, 2, 4, 2, 4, 6, 2, 6, 4, 2, 4, 6,
                           6, 2, 6, 4, 2, 6, 4, 6, 8, 4, 2, 4,
                           2, 4, 8, 6, 4, 6, 2, 4, 6, 2, 6, 6,
                           4, 2, 4, 6, 2, 6, 4, 2, 4, 2,10, 2
                     ]
 
-MAX_INT         =   2147483647
+# Maximum 32 bit integer value
+MAX_INT         =   2_147_483_647
 
+
+def binary_search(a:list, x:int) -> int:
+    """
+    Find the index of an element in a sorted list.
+
+    Args:
+        a (list): Sorted list to compare x against.
+        x (int): Element to run search against on the list.
+
+    Returns:
+        (int) Specifying the index of the element if the element is present in
+            the list, otherwise the index of the next largest element.
+
+    """
+    s = 0
+    e = len(a)
+    m = e >> 1
+    while m != e:
+        if a[m] < x:
+            s = m
+            m = (s + e + 1) >> 1
+        else:
+            e = m
+            m = (s + e) >> 1
+    return m
 
 
 class Prime:
@@ -42,13 +84,49 @@ class Prime:
         """
         Legendre symbol (a|m)
 
-        NOTE: returns (m - 1) if a is a non-residue instead of -1
+        NOTE: returns (m - 1) if `a` is a non-residue instead of -1
 
         Returns:
             (int) representation of the legendre symbol
 
         """
         return pow(a, (m-1) >> 1, m)
+
+    @staticmethod
+    def is_probable_prime(n:int, b:int=2):
+        """
+        Probabilistic priminality check for a given integer.
+
+        Args:
+            n (int): The number to check.
+            b (int): Base number to generate checks against.
+
+        Returns:
+            (bool) indicating if the number is a probable prime.
+
+        """
+        if (n < 2): return False
+        d = n - 1
+        s = 0
+
+        # Shift bits until the first bit is not set (and count the shifts).
+        while (d & 1 == 0):
+            s += 1
+            d >>= 1
+
+        # Check for non-residue
+        x = pow(b, d, n)
+        if ((x == 1) or (x == (n -1))): return True
+
+        # Scale x by the amount of shifts
+        for _ in range(1, s):
+            x = (x * x) % n
+
+            if   (x == 1):      return False
+            elif (x == (n -1)): return True
+
+        return False
+
 
     @staticmethod
     def baillie_psw_primality_test(n:int, b:int=2) -> bool:
@@ -63,22 +141,21 @@ class Prime:
             (bool) whether or not the number has probability to be prime.
 
         """
-        d = n - 1
-        s = 0
+        # Check if n is 2-sqrp and 3-sqrp to ensure n is square free
+        if not Prime.is_probable_prime(n, 2): return False
+        if not Prime.is_probable_prime(n, 3): return False
 
-        while ((d & 1) == 0):
-            s += 1
-            d >>= 1
+        a = 5
+        s = 2
 
-        x = pow(b, d, n)
-        if ((x == 1) or (x == (n - 1))): return True
+        # NOTE: If n is a perfect square this test will run forever. This is
+        #   mitigated by the probable prime checks above.
+        while (Prime.legendre_symbol(a, n) != (n -1)):
+            s = -s
+            a = s - a
 
-        for _ in range(1, s):
-            x = ((x * x) % n)
-            if   (x == 1):       return False
-            elif (x == (n - 1)): return True
+        return Prime.lucas_primality_test(n, a)
 
-        return False
 
     @staticmethod
     def lucas_primality_test(n:int, D:int) -> bool:
@@ -93,12 +170,12 @@ class Prime:
             (bool) whether or not the number passes Lucas primality test.
 
         """
-        Q = (1-D) >> 2
+        Q = (1 - D) >> 2
 
         # n+1 = 2**r*s where s is odd
-        s = n+1
+        s = (n + 1)
         r = 0
-        while s&1 == 0:
+        while (s & 1 == 0):
             r += 1
             s >>= 1
 
@@ -120,7 +197,7 @@ class Prime:
         # Use the same bit reversal process to calculate the sth Lucas number
         inv_2 = (n+1) >> 1
         while (t > 0):
-            if ((t & 1) == 1):
+            if (t & 1):
                 # U, V of n+1
                 U, V = ((U + V) * inv_2)%n, ((D*U + V) * inv_2)%n
                 q = (q * Q)%n
@@ -142,9 +219,8 @@ class Prime:
         return (U == 0)
 
 
-    # an 'almost certain' primality check
     @staticmethod
-    def is_prime(n):
+    def is_prime(n:int) -> bool:
         """
         Probability check if a number is prime.
 
@@ -155,30 +231,28 @@ class Prime:
             (bool) Indicating whether or not the number is a probable prime.
 
         """
-        # Perform full trial division on 32-bit integers
+        # Trivial case where n must be in the predifined prime list
+        if (n < 212):
+            return ( n == SMALL_PRIMES[ binary_search(SMALL_PRIMES, n) ] )
+
+        # Check if n can be factored by any of the small primes
+        for p in SMALL_PRIMES:
+            if ((n % p) == 0): return False
+
+        # Attempt trial division if n is a 32bit integer
         if (n <= MAX_INT):
-            i = 211
-            while ((i * i) < n):
-                for o in OFFSETS:
-                    i += o
-                    if ((n % i) == 0): return False
+            p = 211
+            while ((p * p) < n):
+                for o in SIEVE_OFFSETS:
+                    p += o
+                    if ((n % p) == 0): return False
 
             return True
 
-        # Check the number with Baillie-PSW primality test
-        if not Prime.baillie_psw_primality_test(n): return False
-
-        a = 5
-        s = 2
-
-        while (Prime.legendre_symbol(a, n) != (n - 1)):
-            s = -s
-            a = s-a
-
-        return Prime.lucas_primality_test(n, a)
+        return Prime.baillie_psw_primality_test(n)
 
     @staticmethod
-    def next_prime(n:int, f:callable=Prime.increment) -> int:
+    def next_prime(n:int) -> int:
         """
         Obtain the next prime number that is either smaller than or greater than
         a given number.
@@ -192,41 +266,29 @@ class Prime:
             (int) A prime number suiting the characteristics of the arguments.
 
         """
-        # First odd larger than n
-        n = (n + 1) | 1
+        # Simple case where n is 1
+        if (n < 2): return 2
 
+        n += 1
+
+        # Circumstance where n is in the predifined list of primes
+        if (n < 212):
+            return SMALL_PRIMES[ binary_search(SMALL_PRIMES, n) ]
+
+        # Scale n to the largest predifined index
         x = int(n % 210)
-        s = 0
-        e = 47
-        m = 24
 
-        # Binary search to find sieve rotation position
-        while (m != e):
-            if (INDICES[m] < x):
-                s = m
-                m = (s + e + 1) >> 1
-            else:
-                e = m
-                m = (s + e) >> 1
+        # Find the closest match to the scaled value in the indices
+        m = binary_search(SIEVE_INDICES, x)
 
-        i = f(n,m,x)
+        # Generate a candidate prime number
+        i = int(n + (SIEVE_INDICES[m] - x))
 
-        # Adjust offsets
-        offs = OFFSETS[m:] + OFFSETS[:m]
+        # Enable offset rotation by placing offsets before the mid to the end
+        rotated_offsets = SIEVE_OFFSETS[m:] + SIEVE_OFFSETS[:m]
+
+        # Run until a prime number is found
         while True:
-            for o in offs:
+            for o in rotated_offsets:
                 if Prime.is_prime(i): return i
                 i += o
-
-
-    @staticmethod
-    def increment(n:int, m:int, x:int) -> int:
-        return int(n + (INDICES[m] - x))
-
-    @staticmethod
-    def decriment(n:int, m:int, x:int) -> int:
-        return int(n - (INDICES[m] + x))
-
-    @staticmethod
-    def previous_prime(n:int) -> int:
-        return Prime.next_prime(n, Prime.decriment)
